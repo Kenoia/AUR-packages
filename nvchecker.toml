@@ -1,0 +1,49 @@
+# Upstream version detection for ci/aur.sh update.
+# Entry names must match package directory / pkgname.
+# Run manually: nvchecker -c nvchecker.toml -e <pkgname> --logger json
+#
+# GitHub projects read the releases/latest redirect instead of the API:
+# CI has no GitHub token, and shared-runner IPs exhaust the anonymous API quota.
+
+[craft-agents-bin]
+source = "httpheader"
+url = "https://github.com/craft-ai-agents/craft-agents-oss/releases/latest"
+regex = "/tag/v([^/]+)$"
+
+[lody-bin]
+source = "regex"
+url = "https://updates.lody.ai/production/latest-linux.yml"
+regex = "version: ([\\d.]+)"
+
+[nowledge-mem]
+source = "apt"
+mirror = "https://download-mem.nowledge.co/apt"
+suite = "stable"
+pkg = "nowledge-mem"
+
+# Upstream tags releases as YYYY.MM.P-B; pkgver uses dots throughout.
+[positron-ide-bin]
+source = "httpheader"
+url = "https://github.com/posit-dev/positron/releases/latest"
+regex = "/tag/([^/]+)$"
+from_pattern = "^(\\d{4}\\.\\d{2}\\.\\d+)-(\\d+)$"
+to_pattern = "\\1.\\2"
+
+[yamlresume]
+source = "npm"
+npm = "yamlresume"
+
+[yesplaymusic]
+source = "httpheader"
+url = "https://github.com/qier222/YesPlayMusic/releases/latest"
+regex = "/tag/v([^/]+)$"
+
+[herdr-app-bin]
+source = "regex"
+url = "https://releases.herdr.dev/app/latest.json"
+regex = '"version":\s*"([^"]+)"'
+
+[herdr-core-bin]
+source = "regex"
+url = "https://releases.herdr.dev/core/latest.json"
+regex = '"version":\s*"([^"]+)"'

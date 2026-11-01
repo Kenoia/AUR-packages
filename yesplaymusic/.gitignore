@@ -1,0 +1,6 @@
+# makepkg artifacts
+*.pacman
+*.pkg.tar.*
+pkg/
+src/
+LICENSE-*

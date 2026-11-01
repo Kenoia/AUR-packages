@@ -1,0 +1,85 @@
+name: aur
+
+# schedule / manual run -> update:  nvchecker, bump, build, push AUR, commit back
+# push to main          -> release: build + push AUR for changed packages
+# merge request         -> check:   build changed packages, no push
+#
+# Secrets this relies on (repository settings):
+#   - AUR_SSH_KEY: AUR account private key (the whole file, no trailing newline)
+#
+# Commits pushed with GITHUB_TOKEN do not trigger workflows, so update cannot
+# loop. AUR is pushed only when the built version is newer than AUR's, which
+# makes re-running any mode safe.
+
+on:
+    schedule:
+        - cron: "17 1 * * *"
+    workflow_dispatch:
+    push:
+        branches: [main]
+        paths:
+            - "*/PKGBUILD"
+    pull_request:
+        paths:
+            - "*/*"
+
+# Everything that can push to the AUR runs one at a time; never cancel it.
+concurrency:
+    group: aur
+    cancel-in-progress: false
+
+jobs:
+    update:
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        container: archlinux:base-devel
+        timeout-minutes: 45
+        permissions:
+            contents: write # commits bumped versions back to main
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+            - run: ci/setup.sh
+            - name: Check AUR access
+              run: |
+                  out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
+                  printf '%s\n' "$out"
+                  grep -q "Welcome to AUR" <<< "$out"
+            - name: Update packages
+              run: runuser -u builder -- env GITHUB_TOKEN="$GITHUB_TOKEN" ci/aur.sh update
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    release:
+        if: github.event_name == 'push'
+        runs-on: ubuntu-latest
+        container: archlinux:base-devel
+        timeout-minutes: 45
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+            - run: ci/setup.sh
+            - name: Check AUR access
+              run: |
+                  out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
+                  printf '%s\n' "$out"
+                  grep -q "Welcome to AUR" <<< "$out"
+            - run: runuser -u builder -- ci/aur.sh release "${{ github.event.before }}"
+
+    check:
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        container: archlinux:base-devel
+        timeout-minutes: 45
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+            - run: ci/setup.sh
+            - run: runuser -u builder -- ci/aur.sh check "${{ github.event.pull_request.base.sha }}"

@@ -1,0 +1,9 @@
+*/*.tar
+*/*.gz
+*/*.part
+*/pkg
+*/src
+*/*.pkg.*
+AGENTS.md
+.SRCINFO
+*/*.deb
