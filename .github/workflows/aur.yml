@@ -41,6 +41,8 @@ jobs:
         permissions:
             contents: write # commits bumped versions back to main
         steps:
+            - name: Install git for checkout
+              run: pacman -Syu --noconfirm --needed git
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
@@ -53,11 +55,6 @@ jobs:
                   out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
                   printf '%s\n' "$out"
                   grep -q "Welcome to AUR" <<< "$out"
-            - name: Diagnose
-              run: |
-                  pwd
-                  ls -ld . .git
-                  runuser -u builder -- bash -c 'echo "HOME=$HOME"; pwd; ls -ld . .git; git rev-parse --show-toplevel; echo rc=$?'
             - name: Update packages
               run: runuser -u builder -- env GITHUB_TOKEN="$GITHUB_TOKEN" ci/aur.sh update
               env:
@@ -71,6 +68,8 @@ jobs:
         permissions:
             contents: read
         steps:
+            - name: Install git for checkout
+              run: pacman -Syu --noconfirm --needed git
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
@@ -93,6 +92,8 @@ jobs:
         permissions:
             contents: read
         steps:
+            - name: Install git for checkout
+              run: pacman -Syu --noconfirm --needed git
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
