@@ -53,6 +53,11 @@ jobs:
                   out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
                   printf '%s\n' "$out"
                   grep -q "Welcome to AUR" <<< "$out"
+            - name: Diagnose
+              run: |
+                  pwd
+                  ls -ld . .git
+                  runuser -u builder -- bash -c 'echo "HOME=$HOME"; pwd; ls -ld . .git; git rev-parse --show-toplevel; echo rc=$?'
             - name: Update packages
               run: runuser -u builder -- env GITHUB_TOKEN="$GITHUB_TOKEN" ci/aur.sh update
               env:
