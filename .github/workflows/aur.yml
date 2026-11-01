@@ -28,6 +28,10 @@ concurrency:
     group: aur
     cancel-in-progress: false
 
+defaults:
+    run:
+        shell: bash
+
 jobs:
     update:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -40,7 +44,10 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
-            - run: ci/setup.sh
+            - name: Prepare container
+              run: ci/setup.sh
+              env:
+                  AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
             - name: Check AUR access
               run: |
                   out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
@@ -62,7 +69,10 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
-            - run: ci/setup.sh
+            - name: Prepare container
+              run: ci/setup.sh
+              env:
+                  AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
             - name: Check AUR access
               run: |
                   out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
@@ -81,5 +91,6 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
-            - run: ci/setup.sh
+            - name: Prepare container
+              run: ci/setup.sh
             - run: runuser -u builder -- ci/aur.sh check "${{ github.event.pull_request.base.sha }}"
