@@ -111,7 +111,7 @@ release_one() { # <pkg>
     local pkg=$1 build aur local_ver aur_ver
     build=$(build_one "$pkg")
     aur=$(mktemp -d)
-    git clone -q "ssh://ssh://aur@aur.archlinux.org/$pkg.git" "$aur"
+    git clone -q "ssh://aur@aur.archlinux.org/$pkg.git" "$aur"
 
     local_ver=$(srcinfo_version "$build/.SRCINFO")
     if [[ -f $aur/.SRCINFO ]]; then
