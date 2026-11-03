@@ -2,6 +2,7 @@ name: aur
 
 # schedule / manual run -> update:  nvchecker, bump, build, push AUR, commit back
 # push to main          -> release: build + push AUR for changed packages
+# manual run with dry_run -> update without pushing anywhere (also DRY_RUN=1)
 # merge request         -> check:   build changed packages, no push
 #
 # Secrets this relies on (repository settings):
@@ -15,10 +16,17 @@ on:
     schedule:
         - cron: "17 1 * * *"
     workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Build everything but push nothing (no AUR push, no commit push-back)"
+                type: boolean
+                default: false
     push:
         branches: [main]
         paths:
-            - "*/PKGBUILD"
+            - "*/**"
+            - "!.github/**"
+            - "!ci/**"
     pull_request:
         paths:
             - "*/*"
@@ -56,9 +64,10 @@ jobs:
                   printf '%s\n' "$out"
                   grep -q "Welcome to AUR" <<< "$out"
             - name: Update packages
-              run: runuser -u builder -- env GITHUB_TOKEN="$GITHUB_TOKEN" ci/aur.sh update
+              run: runuser -u builder -- env GITHUB_TOKEN="$GITHUB_TOKEN" DRY_RUN="$DRY_RUN" ci/aur.sh update
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
 
     release:
         if: github.event_name == 'push'
@@ -82,7 +91,9 @@ jobs:
                   out=$(runuser -u builder -- ssh -o BatchMode=yes -T ssh://aur@aur.archlinux.org 2>&1 || true)
                   printf '%s\n' "$out"
                   grep -q "Welcome to AUR" <<< "$out"
-            - run: runuser -u builder -- ci/aur.sh release "${{ github.event.before }}"
+            - run: runuser -u builder -- ci/aur.sh release "$BEFORE"
+              env:
+                  BEFORE: ${{ github.event.before }}
 
     check:
         if: github.event_name == 'pull_request'
@@ -99,4 +110,6 @@ jobs:
                   fetch-depth: 0
             - name: Prepare container
               run: ci/setup.sh
-            - run: runuser -u builder -- ci/aur.sh check "${{ github.event.pull_request.base.sha }}"
+            - run: runuser -u builder -- ci/aur.sh check "$BASE"
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
