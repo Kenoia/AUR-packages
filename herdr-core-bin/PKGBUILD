@@ -33,4 +33,6 @@ sha256sums_aarch64=('3a37a454ec63494cf4306db26481fe9db96673d888723701d24f8a992ae
 package() {
     install -Dm755 "$srcdir/herdr-core" "$pkgdir/usr/bin/herdr-core"
     ln -s herdr-core "$pkgdir/usr/bin/hc"
+    install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" \
+        "$srcdir/LICENSE" "$srcdir/THIRD-PARTY-NOTICES"
 }

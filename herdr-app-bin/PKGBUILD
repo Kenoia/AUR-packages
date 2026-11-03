@@ -58,4 +58,7 @@ Terminal=false
 Categories=Development;
 StartupWMClass=herdr-app
 DESKTOP
+
+    install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" \
+        "$srcdir/herdr-app/LICENSE" "$srcdir/herdr-app/THIRD-PARTY-NOTICES"
 }
