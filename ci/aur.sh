@@ -33,6 +33,9 @@ gh_run_url=$(printenv GITHUB_SERVER_URL || true)/$(printenv GITHUB_REPOSITORY ||
 gh_branch=$(printenv GITHUB_REF_NAME || true)
 [[ -n $gh_branch ]] || gh_branch=main
 
+dry_run=$(printenv DRY_RUN || true)
+case $dry_run in 1 | true | yes) dry_run=1 ;; *) dry_run= ;; esac
+
 log() { printf '\e[1;34m==> %s\e[0m\n' "$*"; }
 err() { printf '\e[1;31m==> ERROR: %s\e[0m\n' "$*" >&2; }
 
@@ -49,9 +52,20 @@ srcinfo_version() { # <.SRCINFO> -> epoch:pkgver-pkgrel
     printf '%s:%s-%s' "${epoch:-0}" "$pkgver" "$pkgrel"
 }
 
+all_packages() {
+    local p
+    for p in */PKGBUILD; do echo "${p%/PKGBUILD}"; done
+}
+
 changed_packages() { # <base>
-    # A new branch reports an all-zero base; there is nothing to diff against.
-    [[ $1 =~ ^0+$ ]] && return 0
+    # A missing base (new branch: all zeros, or a force push that dropped the
+    # old head) has nothing reliable to diff against: consider every package.
+    # release_one only pushes what differs from AUR, so this stays safe.
+    if [[ -z $1 || $1 =~ ^0+$ ]] || ! git cat-file -e "$1^{commit}" 2>/dev/null; then
+        log "base '${1:-}' unavailable, considering all packages" >&2
+        all_packages
+        return 0
+    fi
     git diff --name-only "$1" HEAD | cut -d/ -f1 | sort -u |
         while read -r p; do
             if [[ -f $p/PKGBUILD ]]; then echo "$p"; fi
@@ -114,20 +128,33 @@ release_one() { # <pkg>
     git clone -q "ssh://aur@aur.archlinux.org/$pkg.git" "$aur"
 
     local_ver=$(srcinfo_version "$build/.SRCINFO")
-    if [[ -f $aur/.SRCINFO ]]; then
-        aur_ver=$(srcinfo_version "$aur/.SRCINFO")
-        if (($(vercmp "$local_ver" "$aur_ver") <= 0)); then
-            log "$pkg: $local_ver is not newer than AUR $aur_ver, skipping"
-            return 0
-        fi
-    fi
+    aur_ver=
+    [[ -f $aur/.SRCINFO ]] && aur_ver=$(srcinfo_version "$aur/.SRCINFO")
 
+    # Stage what AUR would receive, then compare contents with what it has.
     find "$aur" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
     git archive HEAD:"$pkg" | tar -x -C "$aur"
     cp "$build/.SRCINFO" "$aur/"
     git -C "$aur" add -A
+    if [[ -n $aur_ver ]] && git -C "$aur" diff --cached --quiet; then
+        log "$pkg: AUR already has $local_ver with identical files, skipping"
+        return 0
+    fi
+    if [[ -n $aur_ver ]] && (($(vercmp "$local_ver" "$aur_ver") <= 0)); then
+        # Files differ but the version did not go up: AUR users would never
+        # see the change. Make it loud so pkgrel gets bumped.
+        err "$pkg: files differ from AUR but $local_ver is not newer than AUR $aur_ver; bump pkgrel"
+        git -C "$aur" diff --cached --stat >&2
+        return 1
+    fi
+
     git -C "$aur" -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" \
         commit -q -m "$(git log -1 --format=%B -- "$pkg")" -m "CI: $gh_run_url"
+    if [[ -n $dry_run ]]; then
+        log "$pkg: DRY_RUN, would push ${aur_ver:-new package} -> $local_ver to AUR:"
+        git -C "$aur" show --stat --format='    %s' HEAD >&2
+        return 0
+    fi
     git -C "$aur" push -q origin HEAD:master
     log "$pkg: pushed $local_ver to AUR"
 }
@@ -160,6 +187,11 @@ push_back() { # <start-sha>
     local start=$1
     if [[ -z $gh_token ]]; then
         log "GITHUB_TOKEN is unset, leaving $(git rev-list --count "$start"..HEAD) commit(s) unpushed"
+        return 0
+    fi
+    if [[ -n $dry_run ]]; then
+        log "DRY_RUN, would push $(git rev-list --count "$start"..HEAD) commit(s) to $gh_branch:"
+        git log --oneline "$start"..HEAD
         return 0
     fi
     local url="https://x-access-token:$gh_token@github.com/$gh_repo.git"
