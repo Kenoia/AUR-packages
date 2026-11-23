@@ -47,3 +47,8 @@ regex = '"version":\s*"([^"]+)"'
 source = "regex"
 url = "https://releases.herdr.dev/core/latest.json"
 regex = '"version":\s*"([^"]+)"'
+
+[dreamcoder]
+source = "regex"
+url = "https://www.dreamcoder.ai/api/downloads"
+regex = '"latest"\s*:\s*\{\s*"linux-deb"\s*:\s*\{[^}]*"release"\s*:\s*"([^"]+)"'
